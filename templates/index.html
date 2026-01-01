@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Smart OCR Extractor</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @keyframes fadeUp {
+      0% { transform: translateY(20px); opacity: 0; }
+      100% { transform: translateY(0); opacity: 1; }
+    }
+    .fade-up {
+      animation: fadeUp 0.6s ease-in-out;
+    }
+    .drop-zone.dragover {
+      background-color: #e0e7ff;
+      border-color: #6366f1;
+    }
+  </style>
+</head>
+<body class="bg-gradient-to-tr from-blue-100 via-indigo-100 to-white min-h-screen flex items-center justify-center px-4 py-12">
+
+  <div class="w-full max-w-5xl bg-white shadow-2xl rounded-3xl p-10 fade-up">
+
+    <!-- Header -->
+    <div class="text-center mb-8">
+      <h1 class="text-5xl font-bold text-gray-800 tracking-tight mb-2"> Smart OCR Extractor</h1>
+      <p class="text-gray-500 text-lg">Upload an image or PDF to extract text using AI</p>
+    </div>
+
+    <!-- Upload Form -->
+    <form id="uploadForm" action="/" method="POST" enctype="multipart/form-data" class="space-y-6">
+
+      <!-- Upload Area with Preview -->
+      <div id="dropZone" class="drop-zone relative flex flex-col md:flex-row items-center justify-between border-2 border-dashed border-gray-400 rounded-2xl p-6 cursor-pointer transition hover:border-indigo-500 hover:bg-indigo-50">
+
+        <!-- Left: Text and File Info -->
+        <div class="flex flex-col items-center justify-center w-full md:w-2/3 text-center space-y-2">
+          <svg class="w-10 h-10 text-indigo-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+          </svg>
+          <p class="text-gray-600 text-base">Drag & Drop your image or PDF, or <span class="text-indigo-600 font-medium underline">click to upload</span></p>
+          <p id="fileName" class="text-sm text-gray-500 font-medium"></p>
+          <input type="file" id="fileInput" name="image" accept="image/*,.pdf" class="hidden" required />
+        </div>
+
+        <!-- Right: Image Preview -->
+        <div class="mt-4 md:mt-0 md:w-1/3 w-full flex justify-center">
+          <img id="imagePreview" src="#" alt="Preview" class="w-24 h-24 object-contain border border-gray-300 rounded-xl shadow hidden" />
+        </div>
+      </div>
+
+      <!-- Buttons -->
+      <div class="flex justify-center gap-4">
+        <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-6 py-2 rounded-xl shadow transition">
+           Extract Text
+        </button>
+        <button type="button" onclick="resetForm()" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold px-6 py-2 rounded-xl shadow transition">
+           Reset
+        </button>
+      </div>
+    </form>
+
+    <!-- Output Textarea -->
+    {% if extracted_text %}
+    <div class="relative mt-10">
+      <label class="block text-gray-700 font-semibold mb-2">Extracted Text</label>
+      <textarea id="outputText" readonly class="w-full p-4 rounded-xl border border-gray-300 shadow-sm text-gray-800 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-400 transition" rows="10">{{ extracted_text }}</textarea>
+      <div class="absolute top-2 right-2 space-x-2">
+        <button onclick="copyText()" class="bg-green-500 hover:bg-green-600 text-white px-3 py-1 text-sm rounded-lg shadow transition">📋 Copy</button>
+        <button onclick="clearText()" class="bg-red-500 hover:bg-red-600 text-white px-3 py-1 text-sm rounded-lg shadow transition">❌ Clear</button>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Table Output -->
+    {% if table_html %}
+    <div class="relative mt-10">
+      <label class="block text-gray-700 font-semibold mb-2">Detected Table</label>
+      <div class="overflow-x-auto border border-gray-300 rounded-xl shadow bg-white p-4 text-sm">
+        {{ table_html | safe }}
+      </div>
+    </div>
+    {% endif %}
+
+  </div>
+
+  <!-- Scripts -->
+  <script>
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('fileInput');
+    const fileName = document.getElementById('fileName');
+    const imagePreview = document.getElementById('imagePreview');
+
+    dropZone.addEventListener('click', () => fileInput.click());
+
+    fileInput.addEventListener('change', () => {
+      if (fileInput.files.length > 0) {
+        const file = fileInput.files[0];
+        fileName.textContent = "📎 " + file.name;
+        const isPDF = file.type === "application/pdf";
+
+        if (!isPDF) {
+          const reader = new FileReader();
+          reader.onload = function (e) {
+            imagePreview.src = e.target.result;
+            imagePreview.classList.remove('hidden');
+          };
+          reader.readAsDataURL(file);
+        } else {
+          imagePreview.classList.add('hidden');
+        }
+      }
+    });
+
+    dropZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropZone.classList.add('dragover');
+    });
+
+    dropZone.addEventListener('dragleave', () => {
+      dropZone.classList.remove('dragover');
+    });
+
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropZone.classList.remove('dragover');
+      const files = e.dataTransfer.files;
+      if (files.length > 0) {
+        fileInput.files = files;
+        fileName.textContent = "📎 " + files[0].name;
+        const isPDF = files[0].type === "application/pdf";
+
+        if (!isPDF) {
+          const reader = new FileReader();
+          reader.onload = function (e) {
+            imagePreview.src = e.target.result;
+            imagePreview.classList.remove('hidden');
+          };
+          reader.readAsDataURL(files[0]);
+        } else {
+          imagePreview.classList.add('hidden');
+        }
+      }
+    });
+
+    function resetForm() {
+      document.getElementById('uploadForm').reset();
+      fileName.textContent = '';
+      imagePreview.src = '#';
+      imagePreview.classList.add('hidden');
+      clearText();
+    }
+
+    function clearText() {
+      const textArea = document.getElementById('outputText');
+      if (textArea) textArea.value = '';
+    }
+
+    function copyText() {
+      const textArea = document.getElementById('outputText');
+      if (textArea) {
+        navigator.clipboard.writeText(textArea.value)
+          .then(() => alert("Text copied to clipboard!"));
+      }
+    }
+  </script>
+</body>
+</html>
